@@ -34,6 +34,14 @@ async function addRegex(updater: () => void) {
     updater();
 }
 
+function safeMatchesRegex(s: string, r: string) {
+    try {
+        return s.match(new RegExp(r));
+    } catch {
+        return false;
+    }
+}
+
 const settings = definePluginSettings({
     replace: {
         type: OptionType.COMPONENT,
@@ -95,7 +103,7 @@ export default definePlugin({
         {
     	    find: "}_dispatch(",
     	    replacement: {
-                match: /}_dispatch\((.{1,2}),.{1,2}\){/,
+                match: /}_dispatch\((\i),\i\){/,
                 replace: "$&$1=$self.modify($1);"
     	    }
     	}
@@ -107,7 +115,7 @@ export default definePlugin({
     },
 
     applyRegexes(m) {
-        if (regexes.some(r => r != "" && m.content.match(new RegExp(r)))) {
+        if (regexes.some(r => r != "" && safeMatchesRegex(m.content, r))) {
             m.mentions.push(me);
         }
     },
