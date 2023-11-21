@@ -61,7 +61,14 @@ function highlightKeywords(s: string, r: Array<string>) {
     if (!matches)
         return [s];
 
-    return s.split(reg).map(e => [
+    let parts = [...matches.map((e) => {
+        let idx = s.indexOf(e);
+        let before = s.substring(0, idx);
+        s = s.substring(idx + e.length);
+        return before;
+    }, s), s];
+
+    return parts.map(e => [
         (<span>{e}</span>),
         matches.length ? (<span class="highlight">{matches.splice(0, 1)[0]}</span>) : []
     ]);
