@@ -188,8 +188,8 @@ export default definePlugin({
         if (regexes.some(r => r != "" && (safeMatchesRegex(m.content, r)))) {
             matches = true;
         }
-        for (let embed of m.embeds) {
-            if (regexes.some(r => r != "" && (safeMatchesRegex(embed.rawDescription, r) || safeMatchesRegex(embed.rawTitle, r)))) {
+        for (let embed of m.embeds as any) {
+            if (regexes.some(r => r != "" && (safeMatchesRegex(embed.description, r) || safeMatchesRegex(embed.title, r)))) {
                 matches = true;
             } else if (embed.fields != null) {
                 for (let field of embed.fields as Array<{ name: string, value: string }>) {
