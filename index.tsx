@@ -12,7 +12,8 @@ import { Devs } from "@utils/constants";
 import { Flex } from "@components/Flex";
 import { TextInput, useState, Forms, Button, UserStore, UserUtils, TabBar, ChannelStore, SelectedChannelStore  } from "@webpack/common";
 import { useForceUpdater } from "@utils/react";
-import { findByCodeLazy, findByPropsLazy, mapMangledModuleLazy, filters } from "@webpack";
+import { findByCodeLazy, findByPropsLazy } from "@webpack";
+import { Message } from "discord-types/general/index.js";
 import "./style.css";
 
 let regexes = [];
@@ -178,7 +179,7 @@ export default definePlugin({
         });
     },
 
-    applyRegexes(m) {
+    applyRegexes(m : Message) {
         if (settings.store.ignoreBots && m.author.bot)
             return;
 
@@ -188,8 +189,14 @@ export default definePlugin({
             matches = true;
         }
         for (let embed of m.embeds) {
-            if (regexes.some(r => r != "" && (safeMatchesRegex(embed.description, r) || safeMatchesRegex(embed.title, r)))) {
+            if (regexes.some(r => r != "" && (safeMatchesRegex(embed.rawDescription, r) || safeMatchesRegex(embed.rawTitle, r)))) {
                 matches = true;
+            } else if (embed.fields != null) {
+                for (let field of embed.fields as Array<{ name: string, value: string }>) {
+                    if (regexes.some(r => r != "" && (safeMatchesRegex(field.value, r) || safeMatchesRegex(field.name, r)))) {
+                        matches = true;
+                    }
+                }
             }
         }
 
@@ -201,7 +208,7 @@ export default definePlugin({
         }
     },
 
-    addToLog(m) {
+    addToLog(m : Message) {
         if (m == null || this.keywordLog.some((e) => e.id == m.id))
             return;
 
