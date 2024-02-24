@@ -16,7 +16,8 @@ import { findByCodeLazy, findByPropsLazy } from "@webpack";
 import { Message } from "discord-types/general/index.js";
 import "./style.css";
 
-let regexes = [];
+let regexes: Array<string> = [];
+let listIds: Array<string> = [];
 
 const MenuHeader = findByCodeLazy("useInDesktopNotificationCenterExperiment)(");
 const Popout = findByPropsLazy("ItemsPopout");
@@ -50,6 +51,71 @@ function safeMatchesRegex(s: string, r: string) {
     }
 }
 
+async function setList(idx: number, reg: string) {
+    listIds[idx] = reg;
+    await DataStore.set("KeywordNotify_listIds", listIds);
+}
+
+async function removeList(idx: number, updater: () => void) {
+    listIds.splice(idx, 1);
+    await DataStore.set("KeywordNotify_listIds", listIds);
+    updater();
+}
+
+async function addList(updater: () => void) {
+    listIds.push("");
+    await DataStore.set("KeywordNotify_listIds", listIds);
+    updater();
+}
+
+enum ListType {
+    BlackList = "BlackList",
+    Whitelist = "Whitelist"
+}
+
+function ListedIds() {
+    const update = useForceUpdater();
+    const [values, setValues] = useState(listIds);
+
+    const elements = listIds.map((a, i) => {
+        const setValue = (v: string) => {
+            let valuesCopy = [...values];
+            valuesCopy[i] = v;
+            setValues(valuesCopy);
+        };
+
+        return (
+            <Flex flexDirection="row">
+                <div style={{ flexGrow: 1 }}>
+                    <TextInput
+                        placeholder="ID"
+                        spellCheck={false}
+                        value={values[i]}
+                        onChange={setValue}
+                        onBlur={() => setList(i, values[i])}
+                    />
+                </div>
+                <Button
+                    onClick={() => removeList(i, update)}
+                    look={Button.Looks.BLANK}
+                    size={Button.Sizes.ICON}
+                    className="keywordnotify-delete">
+                    <DeleteIcon/>
+                </Button>
+            </Flex>
+        );
+    });
+
+    return (
+        <>
+            <Forms.FormTitle tag="h4">White/Blacklisted Ids</Forms.FormTitle>
+            <Forms.FormText tag="div">Supports user, channel, and guild ids</Forms.FormText>
+            {elements}
+            <div><Button onClick={() => addList(update)}>Add ID</Button></div>
+        </>
+    );
+}
+
 function highlightKeywords(s: string, r: Array<string>) {
     let reg;
     try {
@@ -71,8 +137,22 @@ function highlightKeywords(s: string, r: Array<string>) {
 
     return parts.map(e => [
         (<span>{e}</span>),
-        matches.length ? (<span class="highlight">{matches.splice(0, 1)[0]}</span>) : []
+        matches!.length ? (<span className="highlight">{matches!.splice(0, 1)[0]}</span>) : []
     ]);
+}
+
+function listContains(id: string) {
+    return listIds.some((e) => e === id);
+}
+
+function listedMessage(m: Message) {
+    if (listContains(m.channel_id) || listContains(m.author.id)) {
+        return true;
+    }
+    const channel = ChannelStore.getChannel(m.channel_id);
+    return channel != null && listContains(channel.guild_id);
+
+
 }
 
 const settings = definePluginSettings({
@@ -81,7 +161,6 @@ const settings = definePluginSettings({
         description: "Ignore messages from bots",
         default: true
     },
-
     keywords: {
         type: OptionType.COMPONENT,
         description: "",
@@ -94,14 +173,14 @@ const settings = definePluginSettings({
                     let valuesCopy = [...values];
                     valuesCopy[i] = v;
                     setValues(valuesCopy);
-                }
+                };
 
                 return (
                     <>
                         <Forms.FormTitle tag="h4">Keyword Regex {i + 1}</Forms.FormTitle>
 
                         <Flex flexDirection="row">
-                            <div style={{flexGrow: 1}}>
+                            <div style={{ flexGrow: 1 }}>
                                 <TextInput
                                     placeholder="example|regex"
                                     spellCheck={false}
@@ -115,11 +194,11 @@ const settings = definePluginSettings({
                                 look={Button.Looks.BLANK}
                                 size={Button.Sizes.ICON}
                                 className="keywordnotify-delete">
-                                <DeleteIcon />
+                                <DeleteIcon/>
                             </Button>
                         </Flex>
                     </>
-                )
+                );
             });
 
             return (
@@ -130,6 +209,19 @@ const settings = definePluginSettings({
             );
         }
     },
+    listedIds: {
+        type: OptionType.COMPONENT,
+        description: "",
+        component: () => <ListedIds/>
+    },
+    listType: {
+        type: OptionType.SELECT,
+        description: "Select whether to use a blacklist or a whitelist",
+        options: [
+            { label: ListType.BlackList, value: ListType.BlackList, default: true },
+            { label: ListType.Whitelist , value: ListType.Whitelist }
+        ]
+    },
 });
 
 export default definePlugin({
@@ -139,12 +231,12 @@ export default definePlugin({
     settings,
     patches: [
         {
-    	    find: "}_dispatch(",
-    	    replacement: {
+            find: "}_dispatch(",
+            replacement: {
                 match: /}_dispatch\((\i),\i\){/,
                 replace: "$&$1=$self.modify($1);"
-    	    }
-    	},
+            }
+        },
         {
             find: "Messages.UNREADS_TAB_LABEL}",
             replacement: {
@@ -170,8 +262,9 @@ export default definePlugin({
 
     async start() {
         regexes = await DataStore.get("KeywordNotify_rules") ?? [];
+        listIds = await DataStore.get("KeywordNotify_listIds") ?? [];
         this.me = await UserUtils.getUser(UserStore.getCurrentUser().id);
-        this.onUpdate = ()=>null;
+        this.onUpdate = () => null;
         this.keywordLog = [];
 
         (await DataStore.get("KeywordNotify_log") ?? []).map((e) => JSON.parse(e)).forEach((e) => {
@@ -180,8 +273,20 @@ export default definePlugin({
     },
 
     applyRegexes(m : Message) {
-        if (settings.store.ignoreBots && m.author.bot)
+        let listed = listedMessage(m);
+        let whitelistMode = settings.store.listType === ListType.Whitelist;
+        if (settings.store.listType === ListType.BlackList && listed) {
             return;
+        }
+        if (whitelistMode && !listed) {
+            return;
+        }
+
+        if (settings.store.ignoreBots && m.author.bot) {
+            if (!whitelistMode || !listContains(m.author.id)) {
+                return;
+            }
+        }
 
         let matches = false;
 
@@ -233,7 +338,7 @@ export default definePlugin({
 
     tryKeywordMenu(setTab, onJump, closePopout) {
         let header = (
-            <MenuHeader tab={5} setTab={setTab} closePopout={closePopout} badgeState={{badgeForYou: false}}/>
+            <MenuHeader tab={5} setTab={setTab} closePopout={closePopout} badgeState={{ badgeForYou: false }}/>
         );
 
         let channel = ChannelStore.getChannel(SelectedChannelStore.getChannelId());
@@ -277,11 +382,11 @@ export default definePlugin({
                     renderMessage={messageRender}
                     channel={channel}
                     onJump={onJump}
-                    onFetch={()=>null}
+                    onFetch={() => null}
                     onCloseMessage={onDelete}
-                    loadMore={()=>null}
+                    loadMore={() => null}
                     messages={keywordLog}
-                    renderEmptyState={()=>null}
+                    renderEmptyState={() => null}
                 />
             </>
         );
