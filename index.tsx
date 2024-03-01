@@ -301,6 +301,10 @@ export default definePlugin({
         let matches = false;
 
         keywordEntries.forEach(entry => {
+            if (entry.regex === "") {
+                return;
+            }
+
             let listed = entry.listIds.some(id => id === m.channel_id || id === m.author.id);
             if (!listed) {
                 const channel = ChannelStore.getChannel(m.channel_id);
@@ -310,7 +314,7 @@ export default definePlugin({
             }
 
             let whitelistMode = entry.listType === ListType.Whitelist;
-            if (entry.listType === ListType.BlackList && listed) {
+            if (!whitelistMode && listed) {
                 return;
             }
             if (whitelistMode && !listed) {
@@ -323,8 +327,20 @@ export default definePlugin({
                 }
             }
 
-            if (entry.regex != "" && safeMatchesRegex(m.content, entry.regex)) {
+            if (safeMatchesRegex(m.content, entry.regex)) {
                 matches = true;
+            }
+
+            for (let embed of m.embeds as any) {
+                if (safeMatchesRegex(embed.description, entry.regex) || safeMatchesRegex(embed.title, entry.regex)) {
+                    matches = true;
+                } else if (embed.fields != null) {
+                    for (let field of embed.fields as Array<{ name: string, value: string }>) {
+                        if (safeMatchesRegex(field.value, entry.regex) || safeMatchesRegex(field.name, entry.regex)) {
+                            matches = true;
+                        }
+                    }
+                }
             }
         });
 
@@ -338,15 +354,15 @@ export default definePlugin({
     },
 
     addToLog(m: Message) {
-        if (m == null || this.keywordLog.some((e) => e.id == m.id))
+        if (m == null || keywordLog.some((e) => e.id == m.id))
             return;
 
         let thing = createMessageRecord(m);
-        this.keywordLog.push(thing);
-        this.keywordLog.sort((a, b) => b.timestamp - a.timestamp);
+        keywordLog.push(thing);
+        keywordLog.sort((a, b) => b.timestamp - a.timestamp);
 
-        if (this.keywordLog.length > 50)
-            this.keywordLog.pop();
+        if (keywordLog.length > 50)
+            keywordLog.pop();
 
         this.onUpdate();
     },
