@@ -21,7 +21,7 @@ let keywordEntries: Array<{ regex: string, listIds: Array<string>, listType: Lis
 let currentUser: User;
 let keywordLog: Array<any> = [];
 
-const MenuHeader = findByCodeLazy("useInDesktopNotificationCenterExperiment)(");
+const MenuHeader = findByCodeLazy(".useInDesktopNotificationCenterExperiment)()?");
 const Popout = findByPropsLazy("ItemsPopout");
 const recentMentionsPopoutClass = findByPropsLazy("recentMentionsPopout");
 const KEYWORD_ENTRIES_KEY = "KeywordNotify_keywordEntries";
