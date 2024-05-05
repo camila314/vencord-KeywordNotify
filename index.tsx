@@ -24,23 +24,20 @@ let keywordLog: Array<any> = [];
 const MenuHeader = findByCodeLazy("useInDesktopNotificationCenterExperiment)(");
 const Popout = findByPropsLazy("ItemsPopout");
 const recentMentionsPopoutClass = findByPropsLazy("recentMentionsPopout");
+const KEYWORD_ENTRIES_KEY = "KeywordNotify_keywordEntries";
+const KEYWORD_LOG_KEY = "KeywordNotify_log";
 
 const {createMessageRecord} = findByPropsLazy("createMessageRecord", "updateMessageRecord");
 
 async function addKeywordEntry(updater: () => void) {
     keywordEntries.push({regex: "", listIds: [], listType: ListType.BlackList});
-    await DataStore.set("KeywordNotify_keywordEntries", keywordEntries);
+    await DataStore.set(KEYWORD_ENTRIES_KEY, keywordEntries);
     updater();
-}
-
-async function setKeywordEntry(idx: number, reg: string, listIds: Array<string>, listType: ListType) {
-    keywordEntries[idx] = {regex: reg, listIds, listType};
-    await DataStore.set("KeywordNotify_keywordEntries", keywordEntries);
 }
 
 async function removeKeywordEntry(idx: number, updater: () => void) {
     keywordEntries.splice(idx, 1);
-    await DataStore.set("KeywordNotify_keywordEntries", keywordEntries);
+    await DataStore.set(KEYWORD_ENTRIES_KEY, keywordEntries);
     updater();
 }
 
@@ -105,29 +102,28 @@ function Collapsible({title, children}) {
 
 function ListedIds({listIds, setListIds}) {
     const update = useForceUpdater();
-    const [values, setValues] = useState(listIds);
+    const [values] = useState(listIds);
 
-    const elements = values.map((id, i) => {
-        const setId = (v: string) => {
-            let valuesCopy = [...values];
-            valuesCopy[i] = v;
-            setValues(valuesCopy);
-        };
+    async function onChange(e: string, index: number) {
+        values[index] = e;
+        setListIds(values);
+        update();
+    }
 
+    const elements = values.map((currentValue: string, index: number) => {
         return (
             <Flex flexDirection="row" style={{marginBottom: "5px"}}>
                 <div style={{flexGrow: 1}}>
                     <TextInput
                         placeholder="ID"
                         spellCheck={false}
-                        value={values[i]}
-                        onChange={setId}
-                        onBlur={() => setListIds(values)}
+                        value={currentValue}
+                        onChange={(e) => onChange(e, index)}
                     />
                 </div>
                 <Button
                     onClick={() => {
-                        values.splice(i, 1);
+                        values.splice(index, 1);
                         setListIds(values);
                         update();
                     }}
@@ -166,27 +162,27 @@ function ListTypeSelector({listType, setListType}) {
 
 function KeywordEntries() {
     const update = useForceUpdater();
-    const [values, setValues] = useState(keywordEntries);
+    const [values] = useState(keywordEntries);
+
+    async function setRegex(index: number, value: string) {
+        keywordEntries[index].regex = value;
+        await DataStore.set(KEYWORD_ENTRIES_KEY, keywordEntries);
+        update();
+    }
+
+    async function setListType(index: number, value: ListType) {
+        keywordEntries[index].listType = value;
+        await DataStore.set(KEYWORD_ENTRIES_KEY, keywordEntries);
+        update();
+    }
+
+    async function setListIds(index: number, value: Array<string>) {
+        keywordEntries[index].listIds = value ?? [];
+        await DataStore.set(KEYWORD_ENTRIES_KEY, keywordEntries);
+        update();
+    }
 
     const elements = keywordEntries.map((entry, i) => {
-        const setRegex = (v: string) => {
-            let valuesCopy = [...values];
-            valuesCopy[i].regex = v;
-            setValues(valuesCopy);
-        };
-
-        const setListIds = (v: Array<string>) => {
-            let valuesCopy = [...values];
-            valuesCopy[i].listIds = v;
-            setValues(valuesCopy);
-        };
-
-        const setListType = (v: ListType) => {
-            let valuesCopy = [...values];
-            valuesCopy[i].listType = v;
-            setValues(valuesCopy);
-        };
-
         return (
             <>
                 <Collapsible title={`Keyword Entry ${i + 1}`}>
@@ -196,8 +192,7 @@ function KeywordEntries() {
                                 placeholder="example|regex"
                                 spellCheck={false}
                                 value={values[i].regex}
-                                onChange={setRegex}
-                                onBlur={() => setKeywordEntry(i, values[i].regex, values[i].listIds, values[i].listType)}
+                                onChange={(e) => setRegex(i, e)}
                             />
                         </div>
                         <Button
@@ -212,7 +207,7 @@ function KeywordEntries() {
                     <Forms.FormTitle tag="h5">Whitelist/Blacklist</Forms.FormTitle>
                     <Flex flexDirection="row">
                         <div style={{flexGrow: 1}}>
-                            <ListedIds listIds={values[i].listIds} setListIds={setListIds}/>
+                            <ListedIds listIds={values[i].listIds} setListIds={(e) => setListIds(i, e)}/>
                         </div>
                     </Flex>
                     <div className={Margins.top8 + " " + Margins.bottom8}/>
@@ -222,7 +217,7 @@ function KeywordEntries() {
                             update();
                         }}>Add ID</Button>
                         <div style={{flexGrow: 1}}>
-                            <ListTypeSelector listType={values[i].listType} setListType={setListType}/>
+                            <ListTypeSelector listType={values[i].listType} setListType={(e) => setListType(i, e)}/>
                         </div>
                     </Flex>
                 </Collapsible>
@@ -288,11 +283,11 @@ export default definePlugin({
     ],
 
     async start() {
-        keywordEntries = await DataStore.get("KeywordNotify_keywordEntries") ?? [];
+        keywordEntries = await DataStore.get(KEYWORD_ENTRIES_KEY) ?? [];
         currentUser = await UserUtils.getUser(UserStore.getCurrentUser().id);
         this.onUpdate = () => null;
 
-        (await DataStore.get("KeywordNotify_log") ?? []).map((e) => JSON.parse(e)).forEach((e) => {
+        (await DataStore.get(KEYWORD_LOG_KEY) ?? []).map((e) => JSON.parse(e)).forEach((e) => {
             this.addToLog(e);
         });
     },
@@ -388,7 +383,7 @@ export default definePlugin({
             let newLog = [...keywordLog];
             setKeywordLog(newLog);
 
-            DataStore.set("KeywordNotify_log", newLog.map((e) => JSON.stringify(e)));
+            DataStore.set(KEYWORD_LOG_KEY, newLog.map((e) => JSON.stringify(e)));
         };
 
         let onDelete = (m) => {
