@@ -4,18 +4,19 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import definePlugin, { OptionType } from "@utils/types";
+import "./style.css";
+
 import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
+import { Flex } from "@components/Flex";
 import { DeleteIcon } from "@components/Icons";
 import { Devs } from "@utils/constants";
 import { Margins } from "@utils/margins";
-import { Flex } from "@components/Flex";
-import { TextInput, useState, Forms, Button, UserStore, UserUtils, TabBar, ChannelStore, SelectedChannelStore, SearchableSelect } from "@webpack/common";
 import { useForceUpdater } from "@utils/react";
+import definePlugin, { OptionType } from "@utils/types";
 import { findByCodeLazy, findByPropsLazy } from "@webpack";
-import { Message, User} from "discord-types/general/index.js";
-import "./style.css";
+import { Button, ChannelStore, Forms, SearchableSelect,SelectedChannelStore, TabBar, TextInput, UserStore, UserUtils, useState } from "@webpack/common";
+import { Message, User } from "discord-types/general/index.js";
 
 let keywordEntries: Array<{ regex: string, listIds: Array<string>, listType: ListType }> = [];
 let currentUser: User;
@@ -24,23 +25,20 @@ let keywordLog: Array<any> = [];
 const MenuHeader = findByCodeLazy(".useInDesktopNotificationCenterExperiment)()?");
 const Popout = findByPropsLazy("ItemsPopout");
 const recentMentionsPopoutClass = findByPropsLazy("recentMentionsPopout");
+const KEYWORD_ENTRIES_KEY = "KeywordNotify_keywordEntries";
+const KEYWORD_LOG_KEY = "KeywordNotify_log";
 
-const {createMessageRecord} = findByPropsLazy("createMessageRecord", "updateMessageRecord");
+const { createMessageRecord } = findByPropsLazy("createMessageRecord", "updateMessageRecord");
 
 async function addKeywordEntry(updater: () => void) {
-    keywordEntries.push({regex: "", listIds: [], listType: ListType.BlackList});
-    await DataStore.set("KeywordNotify_keywordEntries", keywordEntries);
+    keywordEntries.push({ regex: "", listIds: [], listType: ListType.BlackList });
+    await DataStore.set(KEYWORD_ENTRIES_KEY, keywordEntries);
     updater();
-}
-
-async function setKeywordEntry(idx: number, reg: string, listIds: Array<string>, listType: ListType) {
-    keywordEntries[idx] = {regex: reg, listIds, listType};
-    await DataStore.set("KeywordNotify_keywordEntries", keywordEntries);
 }
 
 async function removeKeywordEntry(idx: number, updater: () => void) {
     keywordEntries.splice(idx, 1);
-    await DataStore.set("KeywordNotify_keywordEntries", keywordEntries);
+    await DataStore.set(KEYWORD_ENTRIES_KEY, keywordEntries);
     updater();
 }
 
@@ -66,13 +64,13 @@ function highlightKeywords(s: string, r: Array<string>) {
         return [s];
     }
 
-    let matches = s.match(regex);
+    const matches = s.match(regex);
     if (!matches)
         return [s];
 
-    let parts = [...matches.map((e) => {
-        let idx = s.indexOf(e);
-        let before = s.substring(0, idx);
+    const parts = [...matches.map(e => {
+        const idx = s.indexOf(e);
+        const before = s.substring(0, idx);
         s = s.substring(idx + e.length);
         return before;
     }, s), s];
@@ -83,7 +81,7 @@ function highlightKeywords(s: string, r: Array<string>) {
     ]);
 }
 
-function Collapsible({title, children}) {
+function Collapsible({ title, children }) {
     const [isOpen, setIsOpen] = useState(false);
 
     return (
@@ -93,8 +91,8 @@ function Collapsible({title, children}) {
                 look={Button.Looks.BLANK}
                 size={Button.Sizes.ICON}
                 className="keywordnotify-collapsible">
-                <div style={{display: "flex", alignItems: "center"}}>
-                    <div style={{marginLeft: "auto", color: "var(--text-muted)"}}>{isOpen ? "▲" : "▼"}</div>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                    <div style={{ marginLeft: "auto", color: "var(--text-muted)" }}>{isOpen ? "▲" : "▼"}</div>
                     <Forms.FormTitle tag="h4">{title}</Forms.FormTitle>
                 </div>
             </Button>
@@ -103,31 +101,30 @@ function Collapsible({title, children}) {
     );
 }
 
-function ListedIds({listIds, setListIds}) {
+function ListedIds({ listIds, setListIds }) {
     const update = useForceUpdater();
-    const [values, setValues] = useState(listIds);
+    const [values] = useState(listIds);
 
-    const elements = values.map((id, i) => {
-        const setId = (v: string) => {
-            let valuesCopy = [...values];
-            valuesCopy[i] = v;
-            setValues(valuesCopy);
-        };
+    async function onChange(e: string, index: number) {
+        values[index] = e;
+        setListIds(values);
+        update();
+    }
 
+    const elements = values.map((currentValue: string, index: number) => {
         return (
-            <Flex flexDirection="row" style={{marginBottom: "5px"}}>
-                <div style={{flexGrow: 1}}>
+            <Flex flexDirection="row" style={{ marginBottom: "5px" }}>
+                <div style={{ flexGrow: 1 }}>
                     <TextInput
                         placeholder="ID"
                         spellCheck={false}
-                        value={values[i]}
-                        onChange={setId}
-                        onBlur={() => setListIds(values)}
+                        value={currentValue}
+                        onChange={e => onChange(e, index)}
                     />
                 </div>
                 <Button
                     onClick={() => {
-                        values.splice(i, 1);
+                        values.splice(index, 1);
                         setListIds(values);
                         update();
                     }}
@@ -147,12 +144,12 @@ function ListedIds({listIds, setListIds}) {
     );
 }
 
-function ListTypeSelector({listType, setListType}) {
+function ListTypeSelector({ listType, setListType }) {
     return (
         <SearchableSelect
             options={[
-                {label: "Whitelist", value: ListType.Whitelist},
-                {label: "Blacklist", value: ListType.BlackList}
+                { label: "Whitelist", value: ListType.Whitelist },
+                { label: "Blacklist", value: ListType.BlackList }
             ]}
             placeholder={"Select a list type"}
             maxVisibleItems={2}
@@ -166,38 +163,37 @@ function ListTypeSelector({listType, setListType}) {
 
 function KeywordEntries() {
     const update = useForceUpdater();
-    const [values, setValues] = useState(keywordEntries);
+    const [values] = useState(keywordEntries);
+
+    async function setRegex(index: number, value: string) {
+        keywordEntries[index].regex = value;
+        await DataStore.set(KEYWORD_ENTRIES_KEY, keywordEntries);
+        update();
+    }
+
+    async function setListType(index: number, value: ListType) {
+        keywordEntries[index].listType = value;
+        await DataStore.set(KEYWORD_ENTRIES_KEY, keywordEntries);
+        update();
+    }
+
+    async function setListIds(index: number, value: Array<string>) {
+        keywordEntries[index].listIds = value ?? [];
+        await DataStore.set(KEYWORD_ENTRIES_KEY, keywordEntries);
+        update();
+    }
 
     const elements = keywordEntries.map((entry, i) => {
-        const setRegex = (v: string) => {
-            let valuesCopy = [...values];
-            valuesCopy[i].regex = v;
-            setValues(valuesCopy);
-        };
-
-        const setListIds = (v: Array<string>) => {
-            let valuesCopy = [...values];
-            valuesCopy[i].listIds = v;
-            setValues(valuesCopy);
-        };
-
-        const setListType = (v: ListType) => {
-            let valuesCopy = [...values];
-            valuesCopy[i].listType = v;
-            setValues(valuesCopy);
-        };
-
         return (
             <>
                 <Collapsible title={`Keyword Entry ${i + 1}`}>
                     <Flex flexDirection="row">
-                        <div style={{flexGrow: 1}}>
+                        <div style={{ flexGrow: 1 }}>
                             <TextInput
                                 placeholder="example|regex"
                                 spellCheck={false}
                                 value={values[i].regex}
-                                onChange={setRegex}
-                                onBlur={() => setKeywordEntry(i, values[i].regex, values[i].listIds, values[i].listType)}
+                                onChange={e => setRegex(i, e)}
                             />
                         </div>
                         <Button
@@ -211,8 +207,8 @@ function KeywordEntries() {
                     <Forms.FormDivider className={Margins.top8 + " " + Margins.bottom8}/>
                     <Forms.FormTitle tag="h5">Whitelist/Blacklist</Forms.FormTitle>
                     <Flex flexDirection="row">
-                        <div style={{flexGrow: 1}}>
-                            <ListedIds listIds={values[i].listIds} setListIds={setListIds}/>
+                        <div style={{ flexGrow: 1 }}>
+                            <ListedIds listIds={values[i].listIds} setListIds={e => setListIds(i, e)}/>
                         </div>
                     </Flex>
                     <div className={Margins.top8 + " " + Margins.bottom8}/>
@@ -221,8 +217,8 @@ function KeywordEntries() {
                             values[i].listIds.push("");
                             update();
                         }}>Add ID</Button>
-                        <div style={{flexGrow: 1}}>
-                            <ListTypeSelector listType={values[i].listType} setListType={setListType}/>
+                        <div style={{ flexGrow: 1 }}>
+                            <ListTypeSelector listType={values[i].listType} setListType={e => setListType(i, e)}/>
                         </div>
                     </Flex>
                 </Collapsible>
@@ -288,11 +284,11 @@ export default definePlugin({
     ],
 
     async start() {
-        keywordEntries = await DataStore.get("KeywordNotify_keywordEntries") ?? [];
+        keywordEntries = await DataStore.get(KEYWORD_ENTRIES_KEY) ?? [];
         currentUser = await UserUtils.getUser(UserStore.getCurrentUser().id);
         this.onUpdate = () => null;
 
-        (await DataStore.get("KeywordNotify_log") ?? []).map((e) => JSON.parse(e)).forEach((e) => {
+        (await DataStore.get(KEYWORD_LOG_KEY) ?? []).map(e => JSON.parse(e)).forEach(e => {
             this.addToLog(e);
         });
     },
@@ -313,7 +309,7 @@ export default definePlugin({
                 }
             }
 
-            let whitelistMode = entry.listType === ListType.Whitelist;
+            const whitelistMode = entry.listType === ListType.Whitelist;
             if (!whitelistMode && listed) {
                 return;
             }
@@ -331,11 +327,11 @@ export default definePlugin({
                 matches = true;
             }
 
-            for (let embed of m.embeds as any) {
+            for (const embed of m.embeds as any) {
                 if (safeMatchesRegex(embed.description, entry.regex) || safeMatchesRegex(embed.title, entry.regex)) {
                     matches = true;
                 } else if (embed.fields != null) {
-                    for (let field of embed.fields as Array<{ name: string, value: string }>) {
+                    for (const field of embed.fields as Array<{ name: string, value: string }>) {
                         if (safeMatchesRegex(field.value, entry.regex) || safeMatchesRegex(field.name, entry.regex)) {
                             matches = true;
                         }
@@ -348,16 +344,16 @@ export default definePlugin({
             // @ts-ignore
             m.mentions.push(currentUser);
 
-            if (m.author.id != currentUser.id)
+            if (m.author.id !== currentUser.id)
                 this.addToLog(m);
         }
     },
 
     addToLog(m: Message) {
-        if (m == null || keywordLog.some((e) => e.id == m.id))
+        if (m == null || keywordLog.some(e => e.id === m.id))
             return;
 
-        let thing = createMessageRecord(m);
+        const thing = createMessageRecord(m);
         keywordLog.push(thing);
         keywordLog.sort((a, b) => b.timestamp - a.timestamp);
 
@@ -377,27 +373,27 @@ export default definePlugin({
     },
 
     tryKeywordMenu(setTab, onJump, closePopout) {
-        let header = (
-            <MenuHeader tab={5} setTab={setTab} closePopout={closePopout} badgeState={{badgeForYou: false}}/>
+        const header = (
+            <MenuHeader tab={5} setTab={setTab} closePopout={closePopout} badgeState={{ badgeForYou: false }}/>
         );
 
-        let channel = ChannelStore.getChannel(SelectedChannelStore.getChannelId());
+        const channel = ChannelStore.getChannel(SelectedChannelStore.getChannelId());
 
-        let [tempLogs, setKeywordLog] = useState(keywordLog);
+        const [tempLogs, setKeywordLog] = useState(keywordLog);
         this.onUpdate = () => {
-            let newLog = [...keywordLog];
+            const newLog = [...keywordLog];
             setKeywordLog(newLog);
 
-            DataStore.set("KeywordNotify_log", newLog.map((e) => JSON.stringify(e)));
+            DataStore.set(KEYWORD_LOG_KEY, newLog.map(e => JSON.stringify(e)));
         };
 
-        let onDelete = (m) => {
-            keywordLog = keywordLog.filter((e) => e.id != m.id);
+        const onDelete = m => {
+            keywordLog = keywordLog.filter(e => e.id !== m.id);
             this.onUpdate();
         };
 
-        let messageRender = (e, t) => {
-            let msg = this.renderMsg({
+        const messageRender = (e, t) => {
+            const msg = this.renderMsg({
                 message: e,
                 gotoMessage: t,
                 dismissible: true
@@ -408,7 +404,7 @@ export default definePlugin({
 
             msg.props.children[0].props.children.props.onClick = () => onDelete(e);
             msg.props.children[1].props.children[1].props.message.customRenderedContent = {
-                content: highlightKeywords(e.content, keywordEntries.map((e) => e.regex))
+                content: highlightKeywords(e.content, keywordEntries.map(e => e.regex))
             };
 
             return [msg];
@@ -433,9 +429,9 @@ export default definePlugin({
     },
 
     modify(e) {
-        if (e.type == "MESSAGE_CREATE") {
+        if (e.type === "MESSAGE_CREATE") {
             this.applyKeywordEntries(e.message);
-        } else if (e.type == "LOAD_MESSAGES_SUCCESS") {
+        } else if (e.type === "LOAD_MESSAGES_SUCCESS") {
             for (let msg = 0; msg < e.messages.length; ++msg) {
                 this.applyKeywordEntries(e.messages[msg]);
             }
