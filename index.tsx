@@ -28,7 +28,7 @@ const recentMentionsPopoutClass = findByPropsLazy("recentMentionsPopout");
 const KEYWORD_ENTRIES_KEY = "KeywordNotify_keywordEntries";
 const KEYWORD_LOG_KEY = "KeywordNotify_log";
 
-const { createMessageRecord } = findByPropsLazy("createMessageRecord", "updateMessageRecord");
+const createMessageRecord = findByCodeLazy(".createFromServer(", ".isBlockedForMessage", "messageReference:");
 
 async function addKeywordEntry(updater: () => void) {
     keywordEntries.push({ regex: "", listIds: [], listType: ListType.BlackList });
