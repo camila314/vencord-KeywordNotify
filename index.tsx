@@ -7,7 +7,7 @@
 import "./style.css";
 
 import definePlugin, { OptionType } from "@utils/types";
-import { Button, ChannelStore, Forms, Select,SelectedChannelStore, TabBar, TextInput, UserStore, UserUtils, useState } from "@webpack/common";
+import { Button, ChannelStore, Forms, Select, Switch, SelectedChannelStore, TabBar, TextInput, UserStore, UserUtils, useState } from "@webpack/common";
 import { classNameFactory } from "@api/Styles";
 import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
@@ -19,7 +19,9 @@ import { Margins } from "@utils/margins";
 import { Message, User } from "discord-types/general/index.js";
 import { useForceUpdater } from "@utils/react";
 
-let keywordEntries: Array<{ regex: string, listIds: Array<string>, listType: ListType }> = [];
+type KeywordEntry = { regex: string, listIds: Array<string>, listType: ListType, ignoreCase: boolean };
+
+let keywordEntries: Array<KeywordEntry> = [];
 let currentUser: User;
 let keywordLog: Array<any> = [];
 
@@ -33,7 +35,7 @@ const KEYWORD_LOG_KEY = "KeywordNotify_log";
 const cl = classNameFactory("vc-keywordnotify-");
 
 async function addKeywordEntry(forceUpdate: () => void) {
-    keywordEntries.push({ regex: "", listIds: [], listType: ListType.BlackList });
+    keywordEntries.push({ regex: "", listIds: [], listType: ListType.BlackList, ignoreCase: false });
     await DataStore.set(KEYWORD_ENTRIES_KEY, keywordEntries);
     forceUpdate();
 }
@@ -44,9 +46,9 @@ async function removeKeywordEntry(idx: number, forceUpdate: () => void) {
     forceUpdate();
 }
 
-function safeMatchesRegex(s: string, r: string) {
+function safeMatchesRegex(str: string, regex: string, flags: string) {
     try {
-        return s.match(new RegExp(r));
+        return str.match(new RegExp(regex, flags));
     } catch {
         return false;
     }
@@ -57,29 +59,26 @@ enum ListType {
     Whitelist = "Whitelist"
 }
 
-function highlightKeywords(s: string, r: Array<string>) {
-    let regex: RegExp;
+function highlightKeywords(str: string, entries: Array<KeywordEntry>) {
+    let regexes: Array<RegExp>;
     try {
-        regex = new RegExp(r.join("|"), "g");
-    } catch {
-        return [s];
+        regexes = entries.map(e => new RegExp(e.regex, "g" + (e.ignoreCase ? "i" : "")));
+    } catch (err) {
+        return [str];
     }
 
-    const matches = s.match(regex);
-    if (!matches)
-        return [s];
+    const matches = regexes.map(r => str.match(r)).flat().filter(e => e != null);
+    if (matches.length == 0) {
+        return [str];
+    }
 
-    const parts = [...matches.map(e => {
-        const idx = s.indexOf(e);
-        const before = s.substring(0, idx);
-        s = s.substring(idx + e.length);
-        return before;
-    }, s), s];
+    const idx = str.indexOf(matches[0]);
 
-    return parts.map(e => [
-        (<span>{e}</span>),
-        matches!.length ? (<span className="highlight">{matches!.splice(0, 1)[0]}</span>) : []
-    ]);
+    return [
+        <span>{str.substring(0, idx)}</span>,
+        <span className="highlight">{matches[0]}</span>,
+        <span>{str.substring(idx + matches[0].length)}</span>
+    ];
 }
 
 function Collapsible({ title, children }) {
@@ -206,6 +205,16 @@ function KeywordEntries() {
                             <DeleteIcon/>
                         </Button>
                     </Flex>
+                    <Switch
+                        value={values[i].ignoreCase}
+                        onChange={() => {
+                            values[i].ignoreCase = !values[i].ignoreCase;
+                            update();
+                        }}
+                        style={{ marginTop: "0.5em", marginRight: "40px" }}
+                    >
+                        Ignore Case
+                    </Switch>
                     <Forms.FormDivider className={[Margins.top8, Margins.bottom8].join(" ") }/>
                     <Forms.FormTitle tag="h5">Whitelist/Blacklist</Forms.FormTitle>
                     <Flex flexDirection="row">
@@ -318,6 +327,7 @@ export default definePlugin({
             }
 
             const whitelistMode = entry.listType === ListType.Whitelist;
+
             if (!whitelistMode && listed) {
                 return;
             }
@@ -325,22 +335,21 @@ export default definePlugin({
                 return;
             }
 
-            if (settings.store.ignoreBots && m.author.bot) {
-                if (!whitelistMode || !entry.listIds.includes(m.author.id)) {
-                    return;
-                }
+            if (settings.store.ignoreBots && m.author.bot && (!whitelistMode || !entry.listIds.includes(m.author.id))) {
+                return;
             }
 
-            if (safeMatchesRegex(m.content, entry.regex)) {
+            const flags = entry.ignoreCase ? "i" : "";
+            if (safeMatchesRegex(m.content, entry.regex, flags)) {
                 matches = true;
             }
 
             for (const embed of m.embeds as any) {
-                if (safeMatchesRegex(embed.description, entry.regex) || safeMatchesRegex(embed.title, entry.regex)) {
+                if (safeMatchesRegex(embed.description, entry.regex, flags) || safeMatchesRegex(embed.title, entry.regex, flags)) {
                     matches = true;
                 } else if (embed.fields != null) {
                     for (const field of embed.fields as Array<{ name: string, value: string }>) {
-                        if (safeMatchesRegex(field.value, entry.regex) || safeMatchesRegex(field.name, entry.regex)) {
+                        if (safeMatchesRegex(field.value, entry.regex, flags) || safeMatchesRegex(field.name, entry.regex, flags)) {
                             matches = true;
                         }
                     }
@@ -404,7 +413,7 @@ export default definePlugin({
             e._keyword = true;
 
             e.customRenderedContent = {
-                content: highlightKeywords(e.content, keywordEntries.map(e => e.regex))
+                content: highlightKeywords(e.content, keywordEntries)
             };
 
             const msg = this.renderMsg({
