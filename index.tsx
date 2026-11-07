@@ -6,13 +6,16 @@
 
 import "./style.css";
 
+import { Button } from "@components/Button";
+import { Divider } from "@components/Divider";
+import { FormSwitch } from "@components/FormSwitch";
+import { Heading } from "@components/Heading";
 import definePlugin, { OptionType } from "@utils/types";
-import { Button, ChannelStore, Forms, Select, Switch, SelectedChannelStore, TabBar, TextInput, UserStore, UserUtils, useState } from "@webpack/common";
+import { ChannelStore, Select, SelectedChannelStore, TabBar, TextInput, UserStore, UserUtils, useState } from "@webpack/common";
 import { classNameFactory } from "@api/Styles";
 import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
 import { DeleteIcon } from "@components/Icons";
-import { Devs } from "@utils/constants";
 import { findByCodeLazy, findByPropsLazy } from "@webpack";
 import { Flex } from "@components/Flex";
 import { Margins } from "@utils/margins";
@@ -88,12 +91,12 @@ function Collapsible({ title, children }) {
         <div>
             <Button
                 onClick={() => setIsOpen(!isOpen)}
-                look={Button.Looks.BLANK}
-                size={Button.Sizes.ICON}
+                variant="none"
+                size="iconOnly"
                 className={cl("collapsible")}>
                 <div style={{ display: "flex", alignItems: "center" }}>
                     <div style={{ marginLeft: "auto", color: "var(--text-muted)", paddingRight: "5px" }}>{isOpen ? "▼" : "▶"}</div>
-                    <Forms.FormTitle tag="h4">{title}</Forms.FormTitle>
+                    <Heading tag="h4" className={Margins.bottom8}>{title}</Heading>
                 </div>
             </Button>
             {isOpen && children}
@@ -128,8 +131,8 @@ function ListedIds({ listIds, setListIds }) {
                         setListIds(values);
                         update();
                     }}
-                    look={Button.Looks.BLANK}
-                    size={Button.Sizes.ICON}
+                    variant="none"
+                    size="iconOnly"
                     className={cl("delete")}>
                     <DeleteIcon/>
                 </Button>
@@ -199,24 +202,24 @@ function KeywordEntries() {
                         </div>
                         <Button
                             onClick={() => removeKeywordEntry(i, update)}
-                            look={Button.Looks.BLANK}
-                            size={Button.Sizes.ICON}
+                            variant="none"
+                            size="iconOnly"
                             className={cl("delete")}>
                             <DeleteIcon/>
                         </Button>
                     </Flex>
-                    <Switch
-                        value={values[i].ignoreCase}
-                        onChange={() => {
-                            values[i].ignoreCase = !values[i].ignoreCase;
-                            update();
-                        }}
-                        style={{ marginTop: "0.5em", marginRight: "40px" }}
-                    >
-                        Ignore Case
-                    </Switch>
-                    <Forms.FormDivider className={[Margins.top8, Margins.bottom8].join(" ") }/>
-                    <Forms.FormTitle tag="h5">Whitelist/Blacklist</Forms.FormTitle>
+                    <div style={{ marginTop: "0.5em", marginRight: "40px" }}>
+                        <FormSwitch
+                            title="Ignore Case"
+                            value={values[i].ignoreCase}
+                            onChange={() => {
+                                values[i].ignoreCase = !values[i].ignoreCase;
+                                update();
+                            }}
+                        />
+                    </div>
+                    <Divider className={[Margins.top8, Margins.bottom8].join(" ") }/>
+                    <Heading tag="h5" className={Margins.bottom8}>Whitelist/Blacklist</Heading>
                     <Flex flexDirection="row">
                         <div style={{ flexGrow: 1 }}>
                             <ListedIds listIds={values[i].listIds} setListIds={e => setListIds(i, e)}/>
@@ -259,7 +262,7 @@ const settings = definePluginSettings({
 
 export default definePlugin({
     name: "KeywordNotify",
-    authors: [Devs.camila314],
+    authors: [{ name: "camila314", id: 738592270617542716n }],
     description: "Sends a notification if a given message matches certain keywords or regexes",
     settings,
     patches: [
